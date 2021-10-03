@@ -1,5 +1,0 @@
-#This is comment
-
-fn main() {
-    print("Hello, World")
-}
