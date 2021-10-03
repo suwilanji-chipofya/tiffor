@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <ctype.h>
+#include <cstdint>
 
 typedef enum {
     _EOF,
@@ -218,6 +219,13 @@ class Parser {
         Lexer lexer;
         token curToken;
         token peek_token;
+        std::string symbols[UINT16_MAX];
+        std::string labelsDeclared[UINT16_MAX];
+        std::string labelsVisited[UINT16_MAX];
+        //points to top of labels array
+        int lp=-1;
+        int lv=-1;
+        int sp=-1;
     public:
         Parser(Lexer lexer) {
             this->lexer=lexer;
@@ -275,8 +283,75 @@ class Parser {
             std::cout << "Close" << std::endl;
             match(SEMI_COLON);
         }
+        
+        int isComparisonOperator() {
+            return (check_token(GT)||check_token(GTEQ)||check_token(LT)||check_token(LTEQ)||check_token(NOTEQ)||check_token(EQEQ));
+        }
+        
+        void primary() {
+            std::cout << "Primary( "<<curToken.text<<" )" << std::endl;
+            if(check_token(NUMBER)) {
+                nextToken();
+            } else if(check_token(IDENT)) {
+                for(int i=0;i<=UINT16_MAX;i++) {
+                    if(curToken.text==symbols[i]) {
+                        break;
+                    } else if(i==UINT16_MAX&&curToken.text!=symbols[i]) {
+                        std::cout << "Referencing undefined variable "<<curToken.text << std::endl;
+                        exit(EXIT_FAILURE);
+                    }
+                }
+                nextToken();
+            } else {
+                std::cout << "Unexpected token at "<<curToken.text << std::endl;
+                exit(EXIT_FAILURE);
+            }
+        }
+        void unary() {
+            std::cout << "unary" << std::endl;
+            if(check_token(PLUS)||check_token(MINUS)) {
+                nextToken();
+                
+            }
+            primary();
+        }
+        void term() {
+            std::cout << "term" << std::endl;
+            unary();
+            while(check_token(ASTERISK)||check_token(SLASH)) {
+                nextToken();
+                unary();
+            }
+        }
+        void comparison() {
+            std::cout << "comparison" << std::endl;
+            expression();
+            if(isComparisonOperator()) {
+                nextToken();
+                expression();
+            } else {
+                std::cout << "Expected comparison operation at "<<curToken.text << std::endl;
+                exit(EXIT_FAILURE);
+            }
+            while(isComparisonOperator()) {
+                nextToken();
+                expression();
+            }
+        }
         void expression() {
             std::cout << "expression" << std::endl;
+            if(check_token(STRING)) {
+                std::cout << curToken.text << std::endl;
+                nextToken();
+            } else {
+                term();
+            while(check_token(PLUS)||check_token(MINUS)){
+                nextToken();
+                term();
+            }
+            }
+            
+            
         }
         void statement() {
             if(check_token(PRINT)) {
@@ -287,12 +362,89 @@ class Parser {
                 } else {
                     expression();
                 }
+            } else if(check_token(IF)) {
+                std::cout << "Statement If" << std::endl;
+                nextToken();
+                comparison();
+                match(THEN);
+                close();
+                while(!check_token(ENDIF)) {
+                    statement();
+                }
+                match(ENDIF);
+            } else if(check_token(WHILE)) {
+                std::cout << "statement while" << std::endl;
+                nextToken();
+                comparison();
+                match(REPEAT);
+                close();
+                while(!check_token(ENDWHILE)) {
+                    statement();
+                }
+                match(ENDWHILE);
+            } else if(check_token(LABEL)) {
+                std::cout << "statement label" << std::endl;
+                nextToken();
+                for(int i=0;i<=UINT16_MAX;i++) {
+                    if(curToken.text==labelsDeclared[i]) {
+                        std::cout << "Error label already exists" <<curToken.text<< std::endl;
+                        exit(EXIT_FAILURE);
+                    }
+                }
+                lp+=1;
+                labelsDeclared[lp]=curToken.text;
+                std::cout <<labelsDeclared[lp]<< std::endl;
+                match(IDENT);
+            } else if(check_token(GOTO)) {
+                std::cout << "statement goto" << std::endl;
+                nextToken();
+                for(int i=0;i<=UINT16_MAX;i++) {
+                    if(curToken.text==labelsDeclared[i]) {
+                        break;
+                    } else if(i==UINT16_MAX&&curToken.text!=labelsDeclared[i]) {
+                        std::cout << "Attempting to goto undeclared label "<<curToken.text << std::endl;
+                        exit(EXIT_FAILURE);
+                    }
+                }
+                lv+=1;
+                labelsVisited[lv]=curToken.text;
+                match(IDENT);
+            } else if(check_token(LET)) {
+                std::cout << "statement let" << std::endl;
+                nextToken();
+                for(int i=0;i<=UINT16_MAX;i++) {
+                    if(curToken.text==symbols[i]) {
+                        break;
+                    } else if(i==UINT16_MAX&&curToken.text!=symbols[i]) {
+                        sp+=1;
+                        symbols[sp]=curToken.text;
+                    }
+                }
+                match(IDENT);
+                match(EQ);
+                expression();
+            } else if(check_token(INPUT)) {
+                std::cout << "statement input" << std::endl;
+                nextToken();
+                for(int i=0;i<=UINT16_MAX;i++) {
+                    if(curToken.text==symbols[i]) {
+                        break;
+                    } else if(i==UINT16_MAX&&curToken.text!=symbols[i]) {
+                        sp+=1;
+                        symbols[sp]=curToken.text;
+                    }
+                }
+                match(IDENT);
+            } else {
+                std::cout << "Invalid statement at "<<curToken.text <<" "<<type_to_string_(curToken.type)<< std::endl;
+                exit(EXIT_FAILURE);
             }
             
             close();
         }
         void program() {
             std::cout << "Program" << std::endl;
+            lexer.skip_comment();
             while(!check_token(_EOF)) {
                 statement();
             }
@@ -317,15 +469,6 @@ int main(int argc,char* argv[]) {
     input.append("\n");
     Lexer lex=Lexer(input);
     Parser parser=Parser(lex);
-    //token tk=lex.get_next_token();
-    /*while(tk.type!=_EOF) {
-        if(tk.type==STRING||tk.type==NUMBER||tk.type==IDENT) {
-            std::cout << tk.text << std::endl;
-        } else {
-            std::cout << tk.type << std::endl;
-        }
-        tk=lex.get_next_token();
-    }*/
     parser.program();
     return 0;
 }
