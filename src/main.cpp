@@ -2,7 +2,7 @@
 #include <fstream>
 #include <ctype.h>
 #include <cstdint>
-
+//Tiffor compiler
 typedef enum {
     _EOF,
     NEWLINE,
