@@ -1,0 +1,13 @@
+
+program:={statement}
+statement:="print" (expresssion|string) nl | "let" ident "=" expresssion nl | "if" comparison "then" "semi_colon" {statement} nl | "while" comparison "repeat" nl {statement} "endwhile" nl
+    | "label" ident nl
+    | "goto" ident nl
+    | "let" ident "=" expression nl
+    | "input" ident nl
+comparison ::= expression (("==" | "!=" | ">" | ">=" | "<" | "<=") expression)+
+expression ::= term {( "-" | "+" ) term}
+term ::= unary {( "/" | "*" ) unary}
+unary ::= ["+" | "-"] primary
+primary ::= number | ident
+nl ::= '\n'+
