@@ -1,2 +1,2 @@
 # Tiffor
-Teeny tiny compiler written in C
+An interpreter written in c++
